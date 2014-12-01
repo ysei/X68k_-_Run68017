@@ -1,0 +1,15 @@
+total 256
+-rw-r--r--  1 baron  users    1391 Dec 10 21:51:48 1995 68017102.HED
+-rw-r--r--  1 baron  users     547 Apr 11 12:00:00 1990 CONST.H
+-rw-r--r--  1 baron  users    4489 Dec 10 20:49:28 1995 DEZO.CM
+-rw-r--r--  1 baron  users     220 Mar  8 23:04:12 1994 KEEPCHK.O
+-rw-r--r--  1 baron  users    1483 Nov 11 12:00:00 1992 KEEPCHK.S
+-rw-r--r--  1 baron  users  113514 Jul  7 14:40:32 1994 KEEPED.S
+-rw-r--r--  1 baron  users    5686 Dec  1 18:28:00 1994 NAW.MAC
+-rw-r--r--  1 baron  users     640 Nov 11 12:00:00 1992 PSPDEF.H
+-rw-r--r--  1 baron  users   20980 Dec 10 22:07:42 1995 Run68017.DOC
+-rw-r--r--  1 baron  users    8412 Jan  8 18:07:24 1995 Run68017.HAS
+-rw-r--r--  1 baron  users   11912 Jan  8 18:07:40 1995 Run68017.o
+-rwxr--r--  1 baron  users   11688 Jan  8 18:07:40 1995 Run68017.x
+-rw-r--r--  1 baron  users    4355 Dec 10 20:55:34 1995 TECH.CM
+-rw-r--r--  1 baron  users     356 Nov 28 00:03:14 1994 makefile

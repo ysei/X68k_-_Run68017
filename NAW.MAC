@@ -1,0 +1,252 @@
+
+
+*	naw.mac		Written by Seisei Yamaguchi （山口青星）
+
+*	これらのmacroは、「Macro HAS equipmented」を使って記述すればもっとsmartに
+*	なるはずです。
+*	Free-software。使用する場合、なるべく作者名をcreditする事（しなくても可）。
+*	Licence-free。商利用可。
+
+
+
+_GRAM		equ	$C00000
+_GPAGE1		equ	$C80000
+_TRAM0		equ	$E00000
+_CRTC_GS0_SC	equ	$E80018
+_CRTC_GS1_SC	equ	$E8001C
+_CRTC_GS2_SC	equ	$E80020
+_CRTC_GS3_SC	equ	$E80024
+_G_PAL		equ	$E82000
+_SP_PAL		equ	$E82200
+_T_PAL		equ	_SP_PAL
+_SP_PAL1	equ	$E82220
+_SP_REG		equ	$EB0000
+_BG0_SC		equ	$EB0800
+_SP_PCG		equ	$EB8000
+_BG1_PCG	equ	$EBE000
+
+*-------------
+m	macro	定義1 , 定義2 , 定義3 , 定義4 , 定義5	*For multi statement.
+	定義1
+	定義2
+	定義3
+	定義4
+	定義5
+ENDM
+*-----------
+M	macro	定義1 , 定義2 , 定義3 , 定義4 , 定義5	*Just capitalyzation.（無駄かも）
+	定義1
+	定義2
+	定義3
+	定義4
+	定義5
+ENDM
+*-----------
+PUSH	macro	REG_LIST , 定義1 , 定義2 , 定義3 , 定義4 , 定義5	*おまけ付PUSH
+	movem.l	REG_LIST,-(sp)
+	m	<定義1>,<定義2>,<定義3>,<定義4>,<定義5>
+ENDM
+*------------
+POP		macro	REG_LIST , 定義1 , 定義2 , 定義3 , 定義4 , 定義5
+	movem.l	(sp)+,REG_LIST
+	m	<定義1>,<定義2>,<定義3>,<定義4>,<定義5>
+ENDM
+*-------------
+r_name	macro	%RG , NAM , 定義1 , 定義2 , 定義3 , 定義4 , 定義5	*Reg_Name定義
+NAM%RG	reg	%RG
+	m	<定義1>,<定義2>,<定義3>,<定義4>,<定義5>
+ENDM
+*-------------
+r_nameS	macro	%RG , NAM , 定義0 , 定義1 , 定義2 , 定義3 , 定義4 , 定義5
+NAM%RG	reg	%RG
+	定義0,%RG
+	m	<定義1>,<定義2>,<定義3>,<定義4>,<定義5>
+ENDM
+*-----------
+r_28	macro	dummy , 定義1 , 定義2 , 定義3 , 定義4 , 定義5	*体裁整え用
+	m	<定義1>,<定義2>,<定義3>,<定義4>,<定義5>
+ENDM
+*------------
+LNK	macro	num
+	link	LA,#num
+ENDM
+*-------------
+ULK	macro
+	unlk	LA
+ENDM
+*------------
+SUPER	macro	dst
+	move.l	a1,dst
+	m	<sub.l a1,a1>,	<IOCS _B_SUPER>
+	m	<move.l	dst,a1>,	<move.l	d0,dst>
+ENDM
+*-----------
+USER	macro	src	*srcは破壊される
+	m	<move.l	a1,-(sp)>,	<move.l	src,a1>,	<move.l	(sp)+,src>
+	m	<IOCS _B_SUPER>,	<move.l	src,a1>
+ENDM
+*-------------
+sSUPER	macro
+	m	<sub.l a1,a1>,	<IOCS _B_SUPER>,	<move.l	d0,-(sp)>
+ENDM
+*-------------
+sUSER	macro
+	m	<move.l	(sp)+,a1>,	<IOCS _B_SUPER>
+ENDM
+*-------------
+IFn	macro	%cc , 式1 , 定義1 , 定義2 , 定義3 , 定義4 , 定義5	*1行not_IF
+	local	L1
+	M	<式1>,	<B%cc L1>
+		m	<定義1>,<定義2>,<定義3>,<定義4>,<定義5>
+	L1:
+ENDM
+*-------------
+IFn2	macro	%cc , 式1 , 式2 , 定義1 , 定義2 , 定義3 , 定義4 , 定義5
+	local	L1
+	M	<式1>, <式2>,	<B%cc L1>
+		m	<定義1>,<定義2>,<定義3>,<定義4>,<定義5>
+	L1:
+ENDM
+*-------------
+IFn_E	macro	%cc , 式1 , 定義1 , 定義2 , 定義3 , 定義4 , 定義5
+	local	L1
+	local	L2
+	M	<式1>,	<B%cc L1>
+		M	<定義1>,<BRA L2>
+	L1:
+		m	<定義2>,<定義3>,<定義4>,<定義5>
+	L2:
+ENDM
+*-------------
+IFn_E2	macro	%cc , 式1 , 定義1 , 定義2 , 定義3 , 定義4 , 定義5
+	local	L1
+	local	L2
+	M	<式1>,	<B%cc L1>
+		m	<定義1>,<定義2>,<BRA L2>
+	L1:
+		m	<定義3>,<定義4>,<定義5>
+	L2:
+ENDM
+*-------------
+IFn2_E2	macro	%cc , 式1 , 式2 , 定義1 , 定義2 , 定義3 , 定義4 , 定義5
+	local	L1
+	local	L2
+	M	<式1>, <式2>,	<B%cc L1>
+		m	<定義1>,<定義2>,<BRA L2>
+	L1:
+		m	<定義3>,<定義4>,<定義5>
+	L2:
+ENDM
+*--------------
+LP	macro	Imm , reg , 定義1 , 定義2 , 定義3 , 定義4 , 定義5
+	local	L1
+	move	#Imm,reg
+	L1:
+		m	<定義1>,<定義2>,<定義3>,<定義4>,<定義5>
+	dbF	reg,L1
+ENDM
+*--------------
+Lq	macro	Imm , reg , 定義1 , 定義2 , 定義3 , 定義4 , 定義5
+	local	L1
+	moveq	#Imm,reg
+	L1:
+		m	<定義1>,<定義2>,<定義3>,<定義4>,<定義5>
+	dbF	reg,L1
+ENDM
+*-------------
+LOOP	macro	reg , 定義1 , 定義2 , 定義3 , 定義4 , 定義5
+	local	L1
+	L1:
+		m	<定義1>,<定義2>,<定義3>,<定義4>,<定義5>
+	dbF	reg,L1
+ENDM
+*----------------
+LB	macro	%cc, 定義1 , 定義2 , 定義3 , 定義4 , 定義5
+	local	L1
+	L1:
+		m	<定義1>,<定義2>,<定義3>,<定義4>,<定義5>
+	B%cc	L1
+ENDM
+*--------------------
+mvd2r	macro	lbl,r0,r1
+	m	<move.l lbl,r0>,	<move.l lbl+4,r1>
+ENDM
+*------------------
+mvdFr	macro	r0,r1,lbl
+	m	<move.l r0,lbl>,	<move.l r0,lbl+4>
+ENDM
+*-----------------
+PRINT	macro	ptr
+	m	<pea ptr>,	<dc $ff09 *_PRINT>,	<addq.l #4,sp>
+ENDM
+*----------
+~~PRINT	macro	<str>		*no label-needed PRINT
+	local	L1
+	PRINT	L1
+
+	data
+*	even
+	L1:	dc.b	<str>,0
+	text
+	even
+ENDM
+*------------------
+~~FREAD	macro	<fname>,addr,len	*need "doscall2.mac"
+	local	__filename
+	m	<move #2,-(sp)>,	<pea __filename>,	<DOS _OPEN>,	<addq.l	#6,sp>
+
+	move	d0,-(sp)	*-2
+	m	<move.l	len,-(sp)>,	<pea addr>,	<move d0,-(sp)>
+	m	<DOS _READ>,	<lea 10(sp),sp>	*-2
+	move.l	d0,-6(sp)	*keep d0	*-2!
+	DOS	_CLOSE
+	addq.l	#2,sp	*+-0
+	move.l	-4(sp),d0
+*----
+	data
+__filename:
+	dc.b	<fname>,0
+	text
+	even
+ENDM (d0.l: _READ-return)
+*------------------
+~~FWRITE	macro	<fname>,addr,len
+	local	__filename
+	m	<move #%100000,-(sp)>,	<pea __filename>,	<DOS _NEWFILE>,	<addq.l	#6,sp>
+
+	move	d0,-(sp)	*-2
+	m	<move.l	len,-(sp)>,	<pea addr>,	<move d0,-(sp)>
+	m	<DOS _WRITE>,	<lea 10(sp),sp>	*-2
+	move.l	d0,-6(sp)	*keep d0	*-2!
+	DOS	_CLOSE
+	addq.l	#2,sp	*+-0
+	move.l	-4(sp),d0
+*---
+	data
+__filename:
+	dc.b	<fname>,0
+	text
+	even
+ENDM (d0.l: _WRITE-return)
+*--------------------------
+IRP	inst,cmp,add,sub,move	*条件jump	;cmpEQ b,#1,d1,labelという感じ
+	IRP	%cc,EQ,NE,GE,MI,PL
+		inst%cc:	macro	%size,sou,dest,label
+			inst.%size	sou,dest
+			b%cc	label
+		ENDM
+	ENDM
+ENDM
+*-----------------
+WAIT_VDISP	macro			*垂直帰線期間待ち
+	m	<LB EQ,	<btst #4,$e88001>>,	<LB NE,	<btst #4,$e88001>>
+ENDM
+*-----------------
+WAIT_VDISP_a	macro	reg		*垂直帰線期間待ち use addr-reg
+	lea	$e88001,reg
+	m	<LB EQ,	<btst #4,(reg)>>,	<LB NE,	<btst #4,(reg)>>
+ENDM
+*========================
+
+	r_name	A0,LA		*link,unlk用レジスタ定義（一般的にはA6を使う）
+

@@ -1,0 +1,336 @@
+;ST-68017 source code - ported from Run68017 on the Amiga by Kamran Karimi
+;X68-68017 source code - ported from ST_68017 on the Atari ST by Dan Hollis
+;
+;emulates 30.5 (!) 68020 instructions.
+;
+;Instructions: bra.l, extb.l, cas, pack, unpk, link.l, movec, rtd, moves,
+;              move ccr,<ea>, trapcc, mulu.l, muls.l, divu.l, divs.l,
+;              divul.l, divsl.l, cas2, chk.l, chk2, cmp2, bsr.l, bfchg
+;              bftst, bfset, bfclr, bfextu, bfexts, bfffo, bfins,
+;          (!) bcc.l (bcc.l is emulated only if branch is taken!)
+;
+;Only the emulated instructions can use new 68020 addressing modes.
+;--------------------------------------------------------------------------
+;Atari ST Version by Dan Hollis (dhollis@bitsink.UUCP)
+;2/23/93 - Original port from Amiga
+;2/26/93 - Added XBRA support and error checking
+;Assembled with TurboASS 1.7.1 using a standard 1040ST.
+;
+;X68000 Version by Seisei Yamaguchi
+;7/7/94 - Original port from Atari ST
+;1/8/95 - Identifier changed from 'X617' to 'ST17' (same as ST version).
+;1/12/2014 - Fixed version number.
+;Assembled with HAS 3.05 using a modified X68000 EXPERT (17.3MHz).
+;Refer to Run68017.DOC for more information.
+
+
+	cpu 68000
+
+_b~xb_id	equ	'ST17'     ;Unique identifier. Keep 'ST17' for EMULATE.
+*_b~xb_id	equ	'X617'
+_vct_addrerr	equ	$c/4
+_vct_IllInst	equ	$10/4
+
+	xref	keepchk
+
+	include	doscall.mac
+	include	iocscall.mac
+	include	const.h
+	include	pspdef.h
+	include	naw.mac
+
+	text
+	even
+
+	include	KEEPED.S	;keeped routine
+
+
+MYSIZE		equ	EndIllegal-KEEP_begin+500
+
+*---------------------
+
+Addr		equ	BeginAddr-KEEP_begin+PSPSIZ
+Inst		equ	BeginIllegal-KEEP_begin+PSPSIZ
+PATCH1		equ	baxb_oldvec-KEEP_begin+PSPSIZ
+PATCH2		equ	bixb_oldvec-KEEP_begin+PSPSIZ
+
+*  These routines are located after ">PART 'Address exception handler'"
+*and ">PART 'Block Storage Space'" for Human68K by S.Yamaguchi.
+
+begin:
+	m	<clr.l -(sp)>,	<pea.l (a0)>,	<BSR keepchk>	*既に常駐しているか
+	m	<addq.l	#8,sp>,	<move.b	d0,d7>
+
+	M	<BSR CHECK_ARG>,	<tst.b __rflag>,	<bNE REMOVE>
+
+*
+*	常駐、または、文字列データ更新
+*
+keep:
+		tst.b	d7
+		bNE	error3
+
+keepmain:
+		lea.l	regsav(pc),a1
+		movem.l	a0/sp,(a1)
+
+		*pea     installit(PC)   ;Address of routine
+                *move.w  #38,-(SP)       ;Supexec
+                *trap    #14
+                *addq.l  #6,SP           ;Fix stack
+		m	sSUPER,	<BSR installit>, sUSER
+
+                *cmpi.l  #1,error        ;Error occurred?
+                *beq.s   crap_out        ;Yup, then exit without install
+
+                *pea     title(PC)       ;Address of titlescreen
+                **move.w  #$09,-(SP)      ;GEMDOS Print Line
+                **trap    #1              ;Call GEMDOS
+		*DOS	_PRINT
+                *addq.l  #4,sp		*6,SP           ;Fix stack
+
+		m	<pea title(pc)>,	<DOS _PRINT>
+		pea.l	crlfms(pc)	*kpms1(pc)
+print:
+		DOS	_PRINT
+		addq.l	#8,sp
+
+                clr.w   -(SP)           ;Null word	*What is '+500' ? (From S.Y.)
+                *move.l  #(EndIllegal-begin)+500,-(SP) ;Length of mem to protect
+		move.l	#MYSIZE,-(sp)
+                *move.w  #$31,-(SP)      ;Termres function
+                *trap    #1              ;Call GEMDOS
+		DOS	_KEEPPR
+
+crap_out:       pea     error_title(PC) ;Address of error screen
+                *move.w  #$09,-(SP)      ;GEMDOS Print Line
+                *trap    #1              ;Call GEMDOS
+		DOS	_PRINT
+                addq.l  #4,sp		*6,SP           ;Fix stack
+
+                *clr.w   -(SP)           ;GEMDOS term
+                *trap    #1              ;Call GEMDOS
+		DOS	_EXIT
+
+
+                *>PART 'Install ST_68017'
+*--------------------
+installit:
+                *movea.l $0C,A0          ;Check for previous installation
+                **cmpi.l  #"ST17",-8(A0)  ;Already installed?
+		*cmpi.l  #_b~xb_id,-8(A0)	;Already installed?
+                *beq.s   no_install      ;Yup, then exit!
+
+		pea.l	kbreak(pc)		*ON ERROR GOTO kbreak
+		move.w	#_CTRLVC,-(sp)
+		DOS	_INTVCS
+		move.w	#_ERRJVC,(sp)
+		DOS	_INTVCS
+		addq.l	#6,sp
+
+                *lea     $0C,A0
+                *move.l  (A0),baxb_oldvec ;save original 'address error' vector
+                *move.l  4(A0),bixb_oldvec ;save original illegal inst. vector
+
+		move.w	#_vct_addrerr,-(sp)
+		DOS	_INTVCG			*Get BEFORE vector
+		move.l	d0,PATCH1(a0)
+		addq.l	#2,sp
+
+		move.w	#_vct_IllInst,-(sp)
+		DOS	_INTVCG			*Get BEFORE vector
+		move.l	d0,PATCH2(a0)
+		addq.l	#2,sp
+
+		kretry:
+
+                *move.l  #BeginAddr,(A0) ;put our new routines in!
+                *move.l  #BeginIllegal,4(A0)
+
+
+		pea.l	Addr(a0)
+		move.w	#_vct_addrerr,-(sp)
+		DOS	_INTVCS
+		addq.l	#6,sp
+
+		pea.l	Inst(a0)
+		move.w	#_vct_IllInst,-(sp)
+		DOS	_INTVCS
+		addq.l	#6,sp
+
+
+	lea.l	donflg(pc),a1
+	st.b	(a1)
+                *clr.l   error           ;No error
+	bra	kdone
+
+kbreak:
+	movem.l	regsav(pc),a0/sp
+	lea.l	donflg(pc),a1
+	tst.b	(a1)
+	beq	kretry
+
+kdone:
+                rts
+
+*no_install:     move.l  #1,error        ;installation failure (already installed)
+*                rts
+*                *ENDPART
+*--------------------
+REMOVE
+                *movea.l $0C,A0			;Check for previous installation
+		*cmpi.l  #_b~xb_id,-8(A0)	;Already installed?
+
+	tst.b	d7
+	beq	error1
+
+	lea.l	Addr(a0),a1
+	move.w	#_vct_addrerr,-(sp)
+	DOS	_INTVCG
+	cmp.l	a1,d0			*Is vector already changed by other program ?
+	bne	error2
+
+	lea.l	Inst(a0),a1
+	move.w	#_vct_IllInst,-(sp)
+	DOS	_INTVCG
+	cmp.l	a1,d0			*Is vector already changed by other program ?
+	bne	error2
+
+	lea.l	regsav(pc),a1
+	movem.l	a0/sp,(a1)
+
+	pea.l	rretry(pc)
+	move.w	#_CTRLVC,-(sp)
+	DOS	_INTVCS
+	move.w	#_ERRJVC,(sp)
+	DOS	_INTVCS
+	addq.l	#6,sp
+
+rretry:
+	move.l	PATCH1(a0),-(sp)
+	move.w	#_vct_addrerr,-(sp)
+	DOS	_INTVCS
+	addq.l	#6,sp
+
+	move.l	PATCH2(a0),-(sp)
+	move.w	#_vct_IllInst,-(sp)
+	DOS	_INTVCS
+	addq.l	#6,sp
+
+	pea.l	MPSIZ(a0)
+	DOS	_MFREE
+	addq.l	#4,sp
+
+	st.b	donflg
+	bra	rdone
+
+rbreak:
+	movem.l	regsav(pc),a0/sp
+	tst.b	donflg
+	beq	rretry
+
+rdone:
+	pea.l	__mes__removed(pc)
+	DOS	_PRINT
+	addq.l	#4,sp
+
+	DOS	_EXIT
+
+*-------------------
+CHECK_ARG
+	tst.b	(a2)+			*a2 is cmd line pointer at Human68K
+	bEQ	EXIT__CHECK_ARG
+
+arglp:
+	BSR	skipsp
+	tst.b	d0
+	beq	EXIT__CHECK_ARG
+
+	cmpi.b	#'-',d0
+	beq	chkopt
+	cmpi.b	#'/',d0
+	beq	chkopt
+	BRA	usage
+
+EXIT__CHECK_ARG	RTS ()
+
+chkopt:
+	addq.l	#1,a2
+	move.b	(a2)+,d0
+	beq	usage
+	ori.b	#$20,d0
+	cmpi.b	#'r',d0
+	seq	__rflag
+	beq	EXIT__CHECK_ARG
+	bra	usage
+*--------
+skipsp:
+		move.b	(a2)+,d0
+	cmpi.b	#' ',d0
+	beq	skipsp
+	cmpi.b	#7,d0	*tab
+	beq	skipsp
+
+	subq.l	#1,a2
+RTS ( d0 )
+*---------------------
+*
+*	エラー処理
+*
+error1:
+	lea.l	__mes__no_keeped(pc),a0
+	bra	@F
+error2:
+	lea.l	errms2(pc),a0
+	bra	@F
+error3:
+	lea.l	error_title(pc),a0
+	bra	@F
+usage:
+	lea.l	__mes__usage(pc),a0
+	bra	@F
+
+	@@:
+	move.w	#STDERR,-(sp)
+	pea.l	(a0)
+	DOS	_FPUTS
+	addq.l	#6,sp
+
+	move.w	#1,-(sp)
+	DOS	_EXIT2
+*------------------------------
+
+	data
+
+
+__rflag	dc.b	0
+
+                *>PART 'Text bits - title screen, etc'
+					;'>PART' has the mean under TURBOASS
+title:         * DC.B 27,'E',
+		dc.b	$0D,$0A
+                DC.B 27,'p | Emul68017 : The 680x0 emulator  | ',27,'q',$0D,$0A
+                DC.B 27,'p| Original by Kamran Karimi (Amiga) |',27,'q'
+		dc.b	'	Ported by Seisei Yamaguchi (X68000) v1.03',$0D,$0A
+                DC.B 27,'p | Ported by Dan Hollis (Atari ST) | ',27,'q',$0D,$0A,0
+
+error_title:    DC.B 27,'E',$0D,$0A
+                DC.B 27,'p |                                 | ',27,'q',$0D,$0A
+                DC.B 27,'p|          <<<< ERROR >>>>          |',27,'q',$0D,$0A
+                DC.B 27,'p |   Emul68017 already installed   | ',27,'q',$0D,$0A,0
+                EVEN
+                *ENDPART	;'ENDPART' has the mean on TURBOASS
+
+__mes__no_keeped	dc.b	'まだ68017が組込まれていません',$d,$a,0
+__mes__removed		dc.b	'68017の常駐を解除しました',$d,$a,0
+errms2	dc.b	'Run68017以降に常駐したプログラムがある様です',CR,LF
+	dc.b	'先にそのプログラムを常駐解除して下さい',CR,LF,EOS
+__mes__usage		dc.b	'68017	機能:	68020の新設命令をemulateする'
+			dc.b	'(オプションなしでの実行で常駐します)',$d,$a,0
+crlfms:	.dc.b	CR,LF,EOS
+
+	even
+regsav:	.dc.l	0,0
+donflg:	.dc.b	0
+
+                END	begin	*Start address is `begin' 
